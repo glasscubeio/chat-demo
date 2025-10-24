@@ -17,7 +17,7 @@ mongoose
   .connect(config.db || "")
   .then(() => logger.info("db connected successfully"))
   .catch((error) =>
-    logger.error("error happened while connecting db " + error.message)
+    logger.error("error happened while connecting db " + error.message),
   );
 
 io.on("connection", (socket) => {
@@ -64,7 +64,7 @@ io.on("connection", (socket) => {
   socket.on("markAsRead", async ({ sender, receiver }) => {
     await Message.updateMany(
       { sender, receiver, read: false },
-      { $set: { read: true } }
+      { $set: { read: true } },
     );
 
     const updatedMessages = await Message.find({
@@ -87,7 +87,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", async () => {
     // Find username from cache and remove
     const username = Array.from(io.sockets.sockets.entries()).find(
-      ([, s]) => s.id === socket.id
+      ([, s]) => s.id === socket.id,
     )?.[0];
 
     if (username) {
@@ -97,6 +97,4 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(3005, () => {
-  console.log("Socket server running on http://localhost:3005");
-});
+server.listen(3005, () => console.log("http://localhost:3005"));
