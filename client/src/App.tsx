@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardContent,
@@ -24,20 +25,26 @@ import { HowItWorks } from "@/components/HowItWorks";
 import { I18nProvider, useI18n, type Lang } from "@/context/i18n";
 import { SocketProvider, useSocketContext } from "@/context/socket";
 import {
+  Check,
   Circle,
+  Copy,
+  Eraser,
   ExternalLink,
   GitBranch,
   Info,
   LogOut,
   MessageCircleMore,
+  Reply,
   Send,
   Timer,
   User,
   UserX,
   Wifi,
   WifiOff,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ReplyTo } from "@/context/socket";
 
 // ─── Language selector ─────────────────────────────────────────────────────────
 
@@ -438,12 +445,16 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
     ping,
     renderTime,
     sendMessage,
+    flushChat,
   } = useSocketContext();
   const { t } = useI18n();
   const [text, setText] = useState("");
   const [showHIW, setShowHIW] = useState(false);
   const [showMobileInfo, setShowMobileInfo] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<ReplyTo | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const name = localStorage.getItem("name") ?? "";
   const peer = localStorage.getItem("peer") ?? "";
 
@@ -451,10 +462,34 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [text]);
+
   const handleSend = () => {
     if (!text.trim()) return;
-    sendMessage(text);
+    sendMessage(text, replyingTo ?? undefined);
     setText("");
+    setReplyingTo(null);
+  };
+
+  const handleCopy = async (id: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId((cur) => (cur === id ? null : cur)), 1500);
+    } catch {
+      // clipboard access denied — nothing we can do
+    }
+  };
+
+  const handleFlush = () => {
+    if (messages.length === 0) return;
+    if (!window.confirm(t.flushConfirm)) return;
+    flushChat();
   };
 
   const formatTime = (iso: string) => {
@@ -589,6 +624,14 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
                 <Info className="w-3.5 h-3.5" />
                 {t.howItWorks}
               </button>
+              <button
+                onClick={handleFlush}
+                disabled={messages.length === 0}
+                className="flex items-center gap-2 px-2 py-1.5 text-xs text-sidebar-foreground/60 hover:text-destructive rounded-md hover:bg-destructive/10 transition-colors w-full disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <Eraser className="w-3.5 h-3.5" />
+                {t.flushChat}
+              </button>
             </SidebarGroup>
           </SidebarContent>
 
@@ -702,7 +745,7 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-3 sm:py-4 space-y-3">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 sm:py-4 space-y-3">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground select-none">
                 <MessageCircleMore className="w-10 h-10 opacity-20" />
@@ -715,13 +758,30 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
                 <div
                   key={msg.id}
                   className={cn(
-                    "flex flex-col gap-0.5 max-w-[82%] sm:max-w-[70%]",
+                    "group/msg flex flex-col gap-0.5 max-w-[82%] sm:max-w-[70%] min-w-0",
                     isMe ? "ml-auto items-end" : "items-start",
                   )}
                 >
+                  {msg.replyTo && (
+                    <div
+                      className={cn(
+                        "min-w-0 max-w-full px-2.5 py-1.5 rounded-lg text-xs border-l-2 opacity-80",
+                        isMe
+                          ? "border-primary-foreground/40 bg-primary/10"
+                          : "border-foreground/25 bg-muted/60",
+                      )}
+                    >
+                      <p className="font-medium truncate">
+                        {msg.replyTo.sender}
+                      </p>
+                      <p className="line-clamp-2 whitespace-pre-wrap wrap-anywhere text-muted-foreground">
+                        {msg.replyTo.text}
+                      </p>
+                    </div>
+                  )}
                   <div
                     className={cn(
-                      "px-3 py-2.5 rounded-2xl text-sm leading-relaxed wrap-break-word",
+                      "min-w-0 max-w-full px-3 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere",
                       isMe
                         ? "bg-primary text-primary-foreground rounded-tr-sm"
                         : "bg-muted rounded-tl-sm",
@@ -729,9 +789,44 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
                   >
                     {msg.text}
                   </div>
-                  <span className="text-[10px] text-muted-foreground px-1">
-                    {formatTime(msg.date)}
-                  </span>
+                  <div
+                    className={cn(
+                      "flex items-center gap-1",
+                      isMe ? "flex-row-reverse" : "flex-row",
+                    )}
+                  >
+                    <span className="text-[10px] text-muted-foreground px-1">
+                      {formatTime(msg.date)}
+                    </span>
+                    <div className="flex items-center gap-0.5 opacity-60 group-hover/msg:opacity-100 transition-opacity">
+                      <button
+                        onClick={() =>
+                          setReplyingTo({
+                            id: msg.id,
+                            sender: msg.sender,
+                            text: msg.text,
+                          })
+                        }
+                        title={t.reply}
+                        aria-label={t.reply}
+                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                      >
+                        <Reply className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => handleCopy(msg.id, msg.text)}
+                        title={t.copy}
+                        aria-label={t.copy}
+                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                      >
+                        {copiedId === msg.id ? (
+                          <Check className="w-3 h-3 text-green-500" />
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               );
             })}
@@ -739,23 +834,52 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
           </div>
 
           {/* Input bar */}
-          <div className="flex gap-2 px-3 sm:px-6 py-3 sm:py-4 border-t bg-background shrink-0">
-            <Input
-              placeholder={t.messagePH.replace("{peer}", peer)}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              disabled={!connected}
-              className="flex-1 h-10 sm:h-9 text-base sm:text-sm"
-            />
-            <Button
-              onClick={handleSend}
-              disabled={!connected || !text.trim()}
-              size="icon"
-              className="h-10 w-10 sm:h-9 sm:w-9 shrink-0"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
+          <div className="flex flex-col gap-2 px-3 sm:px-6 py-3 sm:py-4 border-t bg-background shrink-0">
+            {replyingTo && (
+              <div className="flex items-start gap-2 pl-2.5 pr-1.5 py-1.5 rounded-lg bg-muted border-l-2 border-primary min-w-0">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-medium text-foreground/80">
+                    {t.replyingTo} {replyingTo.sender}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate wrap-anywhere">
+                    {replyingTo.text}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setReplyingTo(null)}
+                  aria-label={t.cancelReply}
+                  title={t.cancelReply}
+                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            <div className="flex gap-2 items-end">
+              <Textarea
+                ref={textareaRef}
+                placeholder={t.messagePH.replace("{peer}", peer)}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                disabled={!connected}
+                rows={1}
+                className="flex-1 min-h-10 sm:min-h-9 max-h-40 py-2 text-base sm:text-sm"
+              />
+              <Button
+                onClick={handleSend}
+                disabled={!connected || !text.trim()}
+                size="icon"
+                className="h-10 w-10 sm:h-9 sm:w-9 shrink-0"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -901,6 +1025,18 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
                 >
                   <Info className="w-4 h-4" />
                   {t.howItWorks}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowMobileInfo(false);
+                    handleFlush();
+                  }}
+                  disabled={messages.length === 0}
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                >
+                  <Eraser className="w-4 h-4" />
+                  {t.flushChat}
                 </button>
 
                 <div className="h-px bg-border" />

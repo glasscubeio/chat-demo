@@ -7,6 +7,13 @@ import {
   useState,
 } from "react";
 import { io, Socket } from "socket.io-client";
+import { markTabUnread } from "@/lib/tabAttention";
+
+export type ReplyTo = {
+  id: string;
+  sender: string;
+  text: string;
+};
 
 export type Message = {
   id: string;
@@ -14,6 +21,7 @@ export type Message = {
   receiver: string;
   text: string;
   date: string;
+  replyTo?: ReplyTo;
 };
 
 type SocketContextType = {
@@ -24,7 +32,8 @@ type SocketContextType = {
   messages: Message[];
   ping: number | null;
   renderTime: number | null;
-  sendMessage: (text: string) => void;
+  sendMessage: (text: string, replyTo?: ReplyTo) => void;
+  flushChat: () => void;
 };
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -91,7 +100,10 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     s.on("message", (msg: Message) => {
       receiveTimeRef.current = performance.now();
       setMessages((prev) => [...prev, msg]);
+      if (msg.sender !== sender) markTabUnread();
     });
+
+    s.on("flushed", () => setMessages([]));
 
     const pingInterval = setInterval(measurePing, 5000);
 
@@ -101,11 +113,23 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  const sendMessage = (text: string) => {
+  const sendMessage = (text: string, replyTo?: ReplyTo) => {
     const sender = localStorage.getItem("name");
     const receiver = localStorage.getItem("peer");
     if (!socket || !sender || !receiver || !text.trim()) return;
-    socket.emit("message", { sender, receiver, text: text.trim() });
+    socket.emit("message", {
+      sender,
+      receiver,
+      text: text.trim(),
+      ...(replyTo ? { replyTo } : {}),
+    });
+  };
+
+  const flushChat = () => {
+    const sender = localStorage.getItem("name");
+    const receiver = localStorage.getItem("peer");
+    if (!socket || !sender || !receiver) return;
+    socket.emit("flush", { sender, receiver });
   };
 
   const acknowledgePeerLeft = () => setPeerJustLeft(false);
@@ -121,6 +145,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         ping,
         renderTime,
         sendMessage,
+        flushChat,
       }}
     >
       {children}

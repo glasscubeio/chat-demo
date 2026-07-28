@@ -7,6 +7,11 @@ type Message = {
   receiver: string;
   text: string;
   date: string;
+  replyTo?: {
+    id: string;
+    sender: string;
+    text: string;
+  };
 };
 
 // username → socketId
@@ -47,13 +52,24 @@ io.on("connection", (socket) => {
 
   socket.on(
     "message",
-    ({ sender, receiver, text }: { sender: string; receiver: string; text: string }) => {
+    ({
+      sender,
+      receiver,
+      text,
+      replyTo,
+    }: {
+      sender: string;
+      receiver: string;
+      text: string;
+      replyTo?: Message["replyTo"];
+    }) => {
       const msg: Message = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         sender,
         receiver,
         text,
         date: new Date().toISOString(),
+        ...(replyTo ? { replyTo } : {}),
       };
 
       const key = convKey(sender, receiver);
@@ -65,6 +81,19 @@ io.on("connection", (socket) => {
 
       const receiverSocketId = users.get(receiver);
       if (receiverSocketId) io.to(receiverSocketId).emit("message", msg);
+    }
+  );
+
+  socket.on(
+    "flush",
+    ({ sender, receiver }: { sender: string; receiver: string }) => {
+      const key = convKey(sender, receiver);
+      conversations.set(key, []);
+
+      socket.emit("flushed");
+
+      const receiverSocketId = users.get(receiver);
+      if (receiverSocketId) io.to(receiverSocketId).emit("flushed");
     }
   );
 

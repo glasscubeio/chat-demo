@@ -35,6 +35,13 @@ export type Translations = {
   hiwServer: string;
   hiwClientB: string;
   hiwSteps: Array<{ label: string; desc: string }>;
+  flushChat: string;
+  flushConfirm: string;
+  reply: string;
+  copy: string;
+  copied: string;
+  replyingTo: string;
+  cancelReply: string;
 };
 
 const T: Record<Lang, Translations> = {
@@ -92,6 +99,13 @@ const T: Record<Lang, Translations> = {
         desc: "두 사용자 모두 연결이 끊기면 대화 내용이 메모리에서 자동으로 삭제됩니다.",
       },
     ],
+    flushChat: "채팅 비우기",
+    flushConfirm: "전체 대화 내용을 삭제할까요? 되돌릴 수 없습니다.",
+    reply: "답장",
+    copy: "복사",
+    copied: "복사됨",
+    replyingTo: "답장 대상",
+    cancelReply: "답장 취소",
   },
   en: {
     appName: "Socket Chat Demo",
@@ -148,6 +162,13 @@ const T: Record<Lang, Translations> = {
         desc: "When both users disconnect, all conversation messages are wiped from memory automatically.",
       },
     ],
+    flushChat: "Flush!",
+    flushConfirm: "Clear the entire conversation for both of you? This can't be undone.",
+    reply: "Reply",
+    copy: "Copy",
+    copied: "Copied",
+    replyingTo: "Replying to",
+    cancelReply: "Cancel reply",
   },
   ru: {
     appName: "Socket Чат Демо",
@@ -204,6 +225,13 @@ const T: Record<Lang, Translations> = {
         desc: "Когда оба пользователя отключаются, все сообщения удаляются из памяти автоматически.",
       },
     ],
+    flushChat: "Очистить чат",
+    flushConfirm: "Очистить всю переписку у обоих собеседников? Это необратимо.",
+    reply: "Ответить",
+    copy: "Копировать",
+    copied: "Скопировано",
+    replyingTo: "Ответ на",
+    cancelReply: "Отменить ответ",
   },
   uz: {
     appName: "Socket Chat Demo",
@@ -259,6 +287,14 @@ const T: Record<Lang, Translations> = {
         desc: "Ikkala foydalanuvchi ham uzilsa, barcha suhbat xabarlari xotiradan avtomatik o'chiriladi.",
       },
     ],
+    flushChat: "Chatni tozalash",
+    flushConfirm:
+      "Butun suhbat ikkala tomon uchun ham o'chirilsinmi? Buni qaytarib bo'lmaydi.",
+    reply: "Javob",
+    copy: "Nusxalash",
+    copied: "Nusxalandi",
+    replyingTo: "Javob berilmoqda",
+    cancelReply: "Javobni bekor qilish",
   },
 };
 
