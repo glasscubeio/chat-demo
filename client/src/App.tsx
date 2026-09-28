@@ -22,6 +22,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { HowItWorks } from "@/components/HowItWorks";
+import { FileBubble } from "@/components/FileBubble";
 import { I18nProvider, useI18n, type Lang } from "@/context/i18n";
 import { SocketProvider, useSocketContext } from "@/context/socket";
 import {
@@ -32,8 +33,11 @@ import {
   ExternalLink,
   GitBranch,
   Info,
+  Loader2,
+  Lock,
   LogOut,
   MessageCircleMore,
+  Paperclip,
   Reply,
   Send,
   Timer,
@@ -43,7 +47,7 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatSize } from "@/lib/utils";
 import type { ReplyTo } from "@/context/socket";
 
 // ─── Language selector ─────────────────────────────────────────────────────────
@@ -435,9 +439,12 @@ function PeerLeftModal({
 
 // ─── Chat ──────────────────────────────────────────────────────────────────────
 
+const MAX_FILE = 50 * 1024 ** 2;
+
 function ChatView({ onLeave }: { onLeave: () => void }) {
   const {
     connected,
+    ready,
     peerOnline,
     peerJustLeft,
     acknowledgePeerLeft,
@@ -445,6 +452,8 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
     ping,
     renderTime,
     sendMessage,
+    downloadFile,
+    burnFile,
     flushChat,
   } = useSocketContext();
   const { t } = useI18n();
@@ -453,8 +462,12 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
   const [showMobileInfo, setShowMobileInfo] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ReplyTo | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const name = localStorage.getItem("name") ?? "";
   const peer = localStorage.getItem("peer") ?? "";
 
@@ -469,11 +482,30 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [text]);
 
-  const handleSend = () => {
-    if (!text.trim()) return;
-    sendMessage(text, replyingTo ?? undefined);
-    setText("");
-    setReplyingTo(null);
+  const stageFile = (file?: File) => {
+    if (!file) return;
+    if (file.size > MAX_FILE) return setError(t.fileTooLarge);
+    setError(null);
+    setAttachment(file);
+  };
+
+  const handleSend = async () => {
+    if (sending || (!text.trim() && !attachment)) return;
+    setSending(true);
+    try {
+      await sendMessage(text, replyingTo ?? undefined, attachment ?? undefined);
+      setText("");
+      setReplyingTo(null);
+      setAttachment(null);
+    } catch {
+      setError(t.uploadFailed);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleBurn = (id: string) => {
+    if (window.confirm(t.burnConfirm)) burnFile(id);
   };
 
   const handleCopy = async (id: string, value: string) => {
@@ -779,16 +811,31 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
                       </p>
                     </div>
                   )}
-                  <div
-                    className={cn(
-                      "min-w-0 max-w-full px-3 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere",
-                      isMe
-                        ? "bg-primary text-primary-foreground rounded-tr-sm"
-                        : "bg-muted rounded-tl-sm",
-                    )}
-                  >
-                    {msg.text}
-                  </div>
+                  {msg.file && (
+                    <FileBubble
+                      file={msg.file}
+                      onDownload={() => msg.file && downloadFile(msg.file)}
+                      onBurn={() => msg.file && handleBurn(msg.file.id)}
+                    />
+                  )}
+                  {msg.locked && (
+                    <div className="flex items-center gap-1.5 px-3 py-2.5 rounded-2xl text-sm italic text-muted-foreground bg-muted">
+                      <Lock className="w-3.5 h-3.5 shrink-0" />
+                      {t.locked}
+                    </div>
+                  )}
+                  {msg.text && (
+                    <div
+                      className={cn(
+                        "min-w-0 max-w-full px-3 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere",
+                        isMe
+                          ? "bg-primary text-primary-foreground rounded-tr-sm"
+                          : "bg-muted rounded-tl-sm",
+                      )}
+                    >
+                      {msg.text}
+                    </div>
+                  )}
                   <div
                     className={cn(
                       "flex items-center gap-1",
@@ -798,34 +845,38 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
                     <span className="text-[10px] text-muted-foreground px-1">
                       {formatTime(msg.date)}
                     </span>
-                    <div className="flex items-center gap-0.5 opacity-60 group-hover/msg:opacity-100 transition-opacity">
-                      <button
-                        onClick={() =>
-                          setReplyingTo({
-                            id: msg.id,
-                            sender: msg.sender,
-                            text: msg.text,
-                          })
-                        }
-                        title={t.reply}
-                        aria-label={t.reply}
-                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                      >
-                        <Reply className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={() => handleCopy(msg.id, msg.text)}
-                        title={t.copy}
-                        aria-label={t.copy}
-                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                      >
-                        {copiedId === msg.id ? (
-                          <Check className="w-3 h-3 text-green-500" />
-                        ) : (
-                          <Copy className="w-3 h-3" />
+                    {!msg.locked && (
+                      <div className="flex items-center gap-0.5 opacity-60 group-hover/msg:opacity-100 transition-opacity">
+                        <button
+                          onClick={() =>
+                            setReplyingTo({
+                              id: msg.id,
+                              sender: msg.sender,
+                              text: msg.text || msg.file?.name || "",
+                            })
+                          }
+                          title={t.reply}
+                          aria-label={t.reply}
+                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        >
+                          <Reply className="w-3 h-3" />
+                        </button>
+                        {msg.text && (
+                          <button
+                            onClick={() => handleCopy(msg.id, msg.text)}
+                            title={t.copy}
+                            aria-label={t.copy}
+                            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                          >
+                            {copiedId === msg.id ? (
+                              <Check className="w-3 h-3 text-green-500" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
                         )}
-                      </button>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -855,29 +906,86 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
                 </button>
               </div>
             )}
+            {attachment && (
+              <div className="flex items-center gap-2 pl-2.5 pr-1.5 py-1.5 rounded-lg bg-muted border-l-2 border-orange-500 min-w-0">
+                <Paperclip className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                <p className="flex-1 min-w-0 text-xs truncate">
+                  {attachment.name}
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {formatSize(attachment.size)}
+                  </span>
+                </p>
+                <button
+                  onClick={() => setAttachment(null)}
+                  aria-label={t.removeFile}
+                  title={t.removeFile}
+                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            {error && <p className="text-xs text-destructive px-1">{error}</p>}
             <div className="flex gap-2 items-end">
+              <input
+                ref={fileInputRef}
+                type="file"
+                hidden
+                onChange={(e) => {
+                  stageFile(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!connected || !ready || sending}
+                title={t.attachFile}
+                aria-label={t.attachFile}
+                className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 text-muted-foreground"
+              >
+                <Paperclip className="w-4 h-4" />
+              </Button>
               <Textarea
                 ref={textareaRef}
-                placeholder={t.messagePH.replace("{peer}", peer)}
+                placeholder={
+                  ready
+                    ? t.messagePH.replace("{peer}", peer)
+                    : t.waitingForKey.replace("{peer}", peer)
+                }
                 value={text}
                 onChange={(e) => setText(e.target.value)}
+                onPaste={(e) => {
+                  const file = e.clipboardData.files[0];
+                  if (!file) return;
+                  e.preventDefault();
+                  stageFile(file);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     handleSend();
                   }
                 }}
-                disabled={!connected}
+                disabled={!connected || !ready}
                 rows={1}
                 className="flex-1 min-h-10 sm:min-h-9 max-h-40 py-2 text-base sm:text-sm"
               />
               <Button
                 onClick={handleSend}
-                disabled={!connected || !text.trim()}
+                disabled={
+                  !connected || !ready || sending || (!text.trim() && !attachment)
+                }
                 size="icon"
                 className="h-10 w-10 sm:h-9 sm:w-9 shrink-0"
               >
-                <Send className="w-4 h-4" />
+                {sending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
               </Button>
             </div>
           </div>

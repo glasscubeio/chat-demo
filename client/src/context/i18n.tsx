@@ -42,6 +42,17 @@ export type Translations = {
   copied: string;
   replyingTo: string;
   cancelReply: string;
+  attachFile: string;
+  removeFile: string;
+  fileTooLarge: string;
+  uploadFailed: string;
+  burnsIn: string;
+  fileBurnt: string;
+  burnNow: string;
+  burnConfirm: string;
+  download: string;
+  locked: string;
+  waitingForKey: string;
 };
 
 const T: Record<Lang, Translations> = {
@@ -92,11 +103,11 @@ const T: Record<Lang, Translations> = {
       },
       {
         label: "실시간 메시지",
-        desc: "메시지는 서버를 경유하여 sender와 receiver 양쪽으로 즉시 전달됩니다.",
+        desc: "메시지와 파일은 브라우저에서 암호화된 뒤 서버를 경유해 전달되므로 서버는 내용을 읽을 수 없습니다.",
       },
       {
         label: "자동 정리",
-        desc: "두 사용자 모두 연결이 끊기면 대화 내용이 메모리에서 자동으로 삭제됩니다.",
+        desc: "파일은 15분 후, 메시지는 24시간 후 소각되며, 두 사용자 모두 나가면 모든 것이 즉시 삭제됩니다.",
       },
     ],
     flushChat: "채팅 비우기",
@@ -106,6 +117,17 @@ const T: Record<Lang, Translations> = {
     copied: "복사됨",
     replyingTo: "답장 대상",
     cancelReply: "답장 취소",
+    attachFile: "파일 첨부",
+    removeFile: "파일 제거",
+    fileTooLarge: "파일은 최대 50MB까지 가능합니다",
+    uploadFailed: "업로드 실패, 다시 시도하세요",
+    burnsIn: "소각까지",
+    fileBurnt: "파일이 소각되었습니다",
+    burnNow: "지금 소각",
+    burnConfirm: "이 파일을 두 사람 모두에게서 지금 소각할까요? 되돌릴 수 없습니다.",
+    download: "다운로드",
+    locked: "이 메시지를 복호화할 수 없습니다",
+    waitingForKey: "암호화 설정을 위해 {peer}의 접속을 기다리는 중...",
   },
   en: {
     appName: "Socket Chat Demo",
@@ -155,11 +177,11 @@ const T: Record<Lang, Translations> = {
       },
       {
         label: "Real-time Messages",
-        desc: "Messages are relayed through the server to both sender and receiver instantly via WebSocket.",
+        desc: "Messages and files are encrypted in the browser, then relayed through the server, which can't read them.",
       },
       {
         label: "Auto Cleanup",
-        desc: "When both users disconnect, all conversation messages are wiped from memory automatically.",
+        desc: "Files burn after 15 minutes, messages after 24 hours, and everything is wiped as soon as both users leave.",
       },
     ],
     flushChat: "Flush!",
@@ -169,6 +191,17 @@ const T: Record<Lang, Translations> = {
     copied: "Copied",
     replyingTo: "Replying to",
     cancelReply: "Cancel reply",
+    attachFile: "Attach file",
+    removeFile: "Remove file",
+    fileTooLarge: "Files can be up to 50 MB",
+    uploadFailed: "Upload failed, try again",
+    burnsIn: "burns in",
+    fileBurnt: "File burnt",
+    burnNow: "Burn now",
+    burnConfirm: "Burn this file for both of you now? This can't be undone.",
+    download: "Download",
+    locked: "Can't decrypt this message",
+    waitingForKey: "Waiting for {peer} to connect to set up encryption...",
   },
   ru: {
     appName: "Socket Чат Демо",
@@ -218,11 +251,11 @@ const T: Record<Lang, Translations> = {
       },
       {
         label: "Обмен сообщениями",
-        desc: "Сообщения проходят через сервер и мгновенно доставляются обоим участникам через WebSocket.",
+        desc: "Сообщения и файлы шифруются в браузере и проходят через сервер, который не может их прочитать.",
       },
       {
         label: "Автоочистка",
-        desc: "Когда оба пользователя отключаются, все сообщения удаляются из памяти автоматически.",
+        desc: "Файлы сгорают через 15 минут, сообщения через 24 часа, а когда оба выходят, всё удаляется сразу.",
       },
     ],
     flushChat: "Очистить чат",
@@ -232,6 +265,17 @@ const T: Record<Lang, Translations> = {
     copied: "Скопировано",
     replyingTo: "Ответ на",
     cancelReply: "Отменить ответ",
+    attachFile: "Прикрепить файл",
+    removeFile: "Убрать файл",
+    fileTooLarge: "Файл может быть до 50 МБ",
+    uploadFailed: "Ошибка загрузки, попробуйте снова",
+    burnsIn: "сгорит через",
+    fileBurnt: "Файл сгорел",
+    burnNow: "Сжечь сейчас",
+    burnConfirm: "Сжечь этот файл у обоих прямо сейчас? Это необратимо.",
+    download: "Скачать",
+    locked: "Не удалось расшифровать сообщение",
+    waitingForKey: "Ожидание {peer} для настройки шифрования...",
   },
   uz: {
     appName: "Socket Chat Demo",
@@ -280,11 +324,11 @@ const T: Record<Lang, Translations> = {
       },
       {
         label: "Real-time xabarlar",
-        desc: "Xabarlar server orqali ikki tomonga ham darhol WebSocket orqali yetkaziladi.",
+        desc: "Xabarlar va fayllar brauzerda shifrlanadi va server orqali yetkaziladi, server ularni o'qiy olmaydi.",
       },
       {
         label: "Avtomatik tozalash",
-        desc: "Ikkala foydalanuvchi ham uzilsa, barcha suhbat xabarlari xotiradan avtomatik o'chiriladi.",
+        desc: "Fayllar 15 daqiqadan so'ng, xabarlar 24 soatdan so'ng yonadi, ikkala foydalanuvchi chiqsa hammasi darhol o'chiriladi.",
       },
     ],
     flushChat: "Chatni tozalash",
@@ -295,6 +339,17 @@ const T: Record<Lang, Translations> = {
     copied: "Nusxalandi",
     replyingTo: "Javob berilmoqda",
     cancelReply: "Javobni bekor qilish",
+    attachFile: "Fayl biriktirish",
+    removeFile: "Faylni olib tashlash",
+    fileTooLarge: "Fayl hajmi 50 MB gacha bo'lishi mumkin",
+    uploadFailed: "Yuklashda xato, qayta urinib ko'ring",
+    burnsIn: "yonib ketadi",
+    fileBurnt: "Fayl yonib ketdi",
+    burnNow: "Hozir yoqish",
+    burnConfirm: "Bu fayl ikkala tomon uchun ham hozir yoqilsinmi? Buni qaytarib bo'lmaydi.",
+    download: "Yuklab olish",
+    locked: "Bu xabarni ochib bo'lmadi",
+    waitingForKey: "Shifrlashni sozlash uchun {peer} ulanishi kutilmoqda...",
   },
 };
 
