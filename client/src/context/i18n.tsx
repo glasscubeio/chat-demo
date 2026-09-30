@@ -103,7 +103,7 @@ const T: Record<Lang, Translations> = {
       },
       {
         label: "실시간 메시지",
-        desc: "메시지와 파일은 브라우저에서 암호화된 뒤 서버를 경유해 전달되므로 서버는 내용을 읽을 수 없습니다.",
+        desc: "메시지는 브라우저에서 암호화된 뒤 서버를 경유해 전달되므로 서버는 내용을 읽을 수 없습니다. 파일은 조각으로 나뉘어 빠르게 업로드됩니다.",
       },
       {
         label: "자동 정리",
@@ -119,7 +119,7 @@ const T: Record<Lang, Translations> = {
     cancelReply: "답장 취소",
     attachFile: "파일 첨부",
     removeFile: "파일 제거",
-    fileTooLarge: "파일은 최대 50MB까지 가능합니다",
+    fileTooLarge: "파일은 최대 100MB까지 가능합니다",
     uploadFailed: "업로드 실패, 다시 시도하세요",
     burnsIn: "소각까지",
     fileBurnt: "파일이 소각되었습니다",
@@ -177,7 +177,7 @@ const T: Record<Lang, Translations> = {
       },
       {
         label: "Real-time Messages",
-        desc: "Messages and files are encrypted in the browser, then relayed through the server, which can't read them.",
+        desc: "Messages are encrypted in the browser and relayed through the server, which can't read them. Files upload in fast parallel chunks.",
       },
       {
         label: "Auto Cleanup",
@@ -193,7 +193,7 @@ const T: Record<Lang, Translations> = {
     cancelReply: "Cancel reply",
     attachFile: "Attach file",
     removeFile: "Remove file",
-    fileTooLarge: "Files can be up to 50 MB",
+    fileTooLarge: "Files can be up to 100 MB",
     uploadFailed: "Upload failed, try again",
     burnsIn: "burns in",
     fileBurnt: "File burnt",
@@ -251,7 +251,7 @@ const T: Record<Lang, Translations> = {
       },
       {
         label: "Обмен сообщениями",
-        desc: "Сообщения и файлы шифруются в браузере и проходят через сервер, который не может их прочитать.",
+        desc: "Сообщения шифруются в браузере и проходят через сервер, который не может их прочитать. Файлы загружаются быстрыми параллельными частями.",
       },
       {
         label: "Автоочистка",
@@ -267,7 +267,7 @@ const T: Record<Lang, Translations> = {
     cancelReply: "Отменить ответ",
     attachFile: "Прикрепить файл",
     removeFile: "Убрать файл",
-    fileTooLarge: "Файл может быть до 50 МБ",
+    fileTooLarge: "Файл может быть до 100 МБ",
     uploadFailed: "Ошибка загрузки, попробуйте снова",
     burnsIn: "сгорит через",
     fileBurnt: "Файл сгорел",
@@ -324,7 +324,7 @@ const T: Record<Lang, Translations> = {
       },
       {
         label: "Real-time xabarlar",
-        desc: "Xabarlar va fayllar brauzerda shifrlanadi va server orqali yetkaziladi, server ularni o'qiy olmaydi.",
+        desc: "Xabarlar brauzerda shifrlanadi va server orqali yetkaziladi, server ularni o'qiy olmaydi. Fayllar tez parallel bo'laklarda yuklanadi.",
       },
       {
         label: "Avtomatik tozalash",
@@ -341,7 +341,7 @@ const T: Record<Lang, Translations> = {
     cancelReply: "Javobni bekor qilish",
     attachFile: "Fayl biriktirish",
     removeFile: "Faylni olib tashlash",
-    fileTooLarge: "Fayl hajmi 50 MB gacha bo'lishi mumkin",
+    fileTooLarge: "Fayl hajmi 100 MB gacha bo'lishi mumkin",
     uploadFailed: "Yuklashda xato, qayta urinib ko'ring",
     burnsIn: "yonib ketadi",
     fileBurnt: "Fayl yonib ketdi",

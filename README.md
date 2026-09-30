@@ -35,7 +35,7 @@ chmod +x run.sh
 2. Tab A: enter name `alice`, chatting with `bob` → **Start Chatting**.
 3. Tab B: enter name `bob`, chatting with `alice` → **Start Chatting**.
 4. Messages sync in real time. The sidebar shows live ping and render time.
-5. Attach a file (up to 50 MB) with the paperclip or paste it from the clipboard. It burns after 15 minutes, or earlier if either user hits the flame button.
+5. Attach a file (up to 100 MB) with the paperclip or paste it from the clipboard. It burns after 15 minutes, or earlier if either user hits the flame button.
 6. Messages expire 24 hours after they are sent. When both users close the chat, everything is wiped from memory immediately.
 
 ---
@@ -89,8 +89,8 @@ chat-demo/
 ## Features
 
 - **Zero external dependencies** — no MongoDB, Redis, or Memcached needed
-- **End-to-end encryption**: messages and files are encrypted in the browser (ECDH P-256 + AES-GCM), the server only holds ciphertext
-- **Burning files**: up to 50 MB per file, kept in server memory for 15 minutes (500 MB total cap), can be burnt early
+- **End-to-end encryption**: messages are encrypted in the browser (ECDH P-256 + AES-GCM), the server only holds ciphertext
+- **Burning files**: up to 100 MB per file, uploaded in parallel 512 KB chunks with live progress, kept in server memory for 15 minutes (1 GB total cap), can be burnt early
 - **Auto-cleanup**: messages expire after 24 hours and everything is deleted when both users disconnect
 - **Live speed metrics** — socket ping RTT and React render time shown in sidebar
 - **Dark / light theme** — persisted to localStorage

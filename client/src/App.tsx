@@ -439,7 +439,14 @@ function PeerLeftModal({
 
 // ─── Chat ──────────────────────────────────────────────────────────────────────
 
-const MAX_FILE = 50 * 1024 ** 2;
+const MAX_FILE = 100 * 1024 ** 2;
+
+type Attachment = {
+  file: File;
+  progress: number;
+  upload: Promise<string>;
+  abort: AbortController;
+};
 
 function ChatView({ onLeave }: { onLeave: () => void }) {
   const {
@@ -452,6 +459,7 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
     ping,
     renderTime,
     sendMessage,
+    uploadFile,
     downloadFile,
     burnFile,
     flushChat,
@@ -462,7 +470,7 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
   const [showMobileInfo, setShowMobileInfo] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ReplyTo | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [attachment, setAttachment] = useState<File | null>(null);
+  const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -482,22 +490,69 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [text]);
 
-  const stageFile = (file?: File) => {
-    if (!file) return;
+  const discardAttachment = () => {
+    attachment?.abort.abort();
+    attachment?.upload.then(burnFile, () => {});
+    setAttachment(null);
+  };
+
+  const stageFile = (file: File) => {
+    if (sending) return;
     if (file.size > MAX_FILE) return setError(t.fileTooLarge);
     setError(null);
-    setAttachment(file);
+    discardAttachment();
+    const abort = new AbortController();
+    const upload = uploadFile(
+      file,
+      (progress) =>
+        setAttachment((a) => (a?.file === file ? { ...a, progress } : a)),
+      abort.signal,
+    );
+    upload.catch(() => {
+      if (abort.signal.aborted) return;
+      setError(t.uploadFailed);
+      setAttachment((a) => (a?.file === file ? null : a));
+    });
+    setAttachment({ file, progress: 0, upload, abort });
+    textareaRef.current?.focus();
   };
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const file = e.clipboardData?.files[0];
+      if (file) {
+        e.preventDefault();
+        return stageFile(file);
+      }
+      const pasted = e.clipboardData?.getData("text");
+      if (!pasted || e.target === textareaRef.current) return;
+      e.preventDefault();
+      setText((cur) => cur + pasted);
+      textareaRef.current?.focus();
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  });
 
   const handleSend = async () => {
     if (sending || (!text.trim() && !attachment)) return;
+    const draft = text;
+    const reply = replyingTo;
+    setText("");
+    setReplyingTo(null);
     setSending(true);
     try {
-      await sendMessage(text, replyingTo ?? undefined, attachment ?? undefined);
-      setText("");
-      setReplyingTo(null);
+      await sendMessage(
+        draft,
+        reply ?? undefined,
+        attachment
+          ? { id: await attachment.upload, file: attachment.file }
+          : undefined,
+      );
       setAttachment(null);
     } catch {
+      setText((cur) => cur || draft);
+      setReplyingTo((cur) => cur ?? reply);
       setError(t.uploadFailed);
     } finally {
       setSending(false);
@@ -907,23 +962,33 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
               </div>
             )}
             {attachment && (
-              <div className="flex items-center gap-2 pl-2.5 pr-1.5 py-1.5 rounded-lg bg-muted border-l-2 border-orange-500 min-w-0">
+              <div className="relative overflow-hidden flex items-center gap-2 pl-2.5 pr-1.5 py-1.5 rounded-lg bg-muted border-l-2 border-orange-500 min-w-0">
                 <Paperclip className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                 <p className="flex-1 min-w-0 text-xs truncate">
-                  {attachment.name}
+                  {attachment.file.name}
                   <span className="text-muted-foreground">
                     {" "}
-                    · {formatSize(attachment.size)}
+                    · {formatSize(attachment.file.size)}
+                    {attachment.progress < 1 &&
+                      ` · ${Math.floor(attachment.progress * 100)}%`}
                   </span>
                 </p>
                 <button
-                  onClick={() => setAttachment(null)}
+                  onClick={discardAttachment}
+                  disabled={sending}
                   aria-label={t.removeFile}
                   title={t.removeFile}
-                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0 disabled:opacity-40"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
+                <div
+                  className={cn(
+                    "absolute left-0 bottom-0 h-0.5 transition-[width,background-color] duration-300",
+                    attachment.progress < 1 ? "bg-orange-500" : "bg-green-500",
+                  )}
+                  style={{ width: `${attachment.progress * 100}%` }}
+                />
               </div>
             )}
             {error && <p className="text-xs text-destructive px-1">{error}</p>}
@@ -933,7 +998,8 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
                 type="file"
                 hidden
                 onChange={(e) => {
-                  stageFile(e.target.files?.[0]);
+                  const file = e.target.files?.[0];
+                  if (file) stageFile(file);
                   e.target.value = "";
                 }}
               />
@@ -957,12 +1023,6 @@ function ChatView({ onLeave }: { onLeave: () => void }) {
                 }
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                onPaste={(e) => {
-                  const file = e.clipboardData.files[0];
-                  if (!file) return;
-                  e.preventDefault();
-                  stageFile(file);
-                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();

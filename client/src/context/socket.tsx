@@ -80,18 +80,22 @@ async function openMessage(
   }
 }
 
-async function uploadFile(
-  key: CryptoKey,
-  file: File,
-  sender: string,
-  receiver: string,
-) {
-  const res = await fetch(
-    `${API_URL}/files?${new URLSearchParams({ sender, receiver })}`,
-    { method: "POST", body: await encrypt(key, await file.arrayBuffer()) },
+const CHUNK = 512 * 1024;
+const PARALLEL = 6;
+
+async function post(
+  url: string,
+  signal: AbortSignal,
+  body?: Blob,
+  retries = 3,
+): Promise<Response> {
+  const res = await fetch(url, { method: "POST", body, signal }).catch(
+    () => null,
   );
-  if (!res.ok) throw new Error(`upload ${res.status}`);
-  return ((await res.json()) as { id: string }).id;
+  if (res?.ok) return res;
+  if (retries > 0 && !signal.aborted)
+    return post(url, signal, body, retries - 1);
+  throw new Error(`upload failed: ${res?.status ?? "network"}`);
 }
 
 type SocketContextType = {
@@ -103,7 +107,16 @@ type SocketContextType = {
   messages: Message[];
   ping: number | null;
   renderTime: number | null;
-  sendMessage: (text: string, replyTo?: ReplyTo, file?: File) => Promise<void>;
+  sendMessage: (
+    text: string,
+    replyTo?: ReplyTo,
+    file?: { id: string; file: File },
+  ) => Promise<void>;
+  uploadFile: (
+    file: File,
+    onProgress: (progress: number) => void,
+    signal: AbortSignal,
+  ) => Promise<string>;
   downloadFile: (file: FileMeta) => Promise<void>;
   burnFile: (id: string) => void;
   flushChat: () => void;
@@ -218,33 +231,66 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  const sendMessage = async (text: string, replyTo?: ReplyTo, file?: File) => {
+  const sendMessage = async (
+    text: string,
+    replyTo?: ReplyTo,
+    attachment?: { id: string; file: File },
+  ) => {
     const key = keyRef.current;
-    const sender = localStorage.getItem("name");
-    const receiver = localStorage.getItem("peer");
-    if (!socket || !key || !sender || !receiver || (!text.trim() && !file))
-      return;
-    const fileId = file && (await uploadFile(key, file, sender, receiver));
+    if (!socket || !key || (!text.trim() && !attachment)) return;
+    const file = attachment?.file;
     const payload: Payload = {
       text: text.trim(),
       replyTo,
       file: file && { name: file.name, type: file.type, size: file.size },
     };
     socket.emit("message", {
-      fileId,
+      fileId: attachment?.id,
       body: await encrypt(key, new TextEncoder().encode(JSON.stringify(payload))),
     });
   };
 
+  const uploadFile = async (
+    file: File,
+    onProgress: (progress: number) => void,
+    signal: AbortSignal,
+  ) => {
+    const sender = localStorage.getItem("name") ?? "";
+    const receiver = localStorage.getItem("peer") ?? "";
+    const params = new URLSearchParams({
+      sender,
+      receiver,
+      size: String(file.size),
+    });
+    const res = await post(`${API_URL}/files?${params}`, signal);
+    const { id } = (await res.json()) as { id: string };
+    let next = 0;
+    let done = 0;
+    const worker = async () => {
+      while (next < file.size) {
+        const offset = next;
+        next += CHUNK;
+        const chunk = file.slice(offset, offset + CHUNK);
+        await post(`${API_URL}/files/${id}?offset=${offset}`, signal, chunk);
+        done += chunk.size;
+        onProgress(done / file.size);
+      }
+    };
+    try {
+      await Promise.all(Array.from({ length: PARALLEL }, worker));
+      onProgress(1);
+      return id;
+    } catch (e) {
+      socket?.emit("burn", id);
+      throw e;
+    }
+  };
+
   const downloadFile = async (file: FileMeta) => {
-    const key = keyRef.current;
-    if (!key) return;
     const res = await fetch(`${API_URL}/files/${file.id}`);
     if (!res.ok) return setMessages(burn(file.id));
     const url = URL.createObjectURL(
-      new Blob([await decrypt(key, await res.arrayBuffer())], {
-        type: file.type,
-      }),
+      new Blob([await res.arrayBuffer()], { type: file.type }),
     );
     Object.assign(document.createElement("a"), {
       href: url,
@@ -271,6 +317,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         ping,
         renderTime,
         sendMessage,
+        uploadFile,
         downloadFile,
         burnFile,
         flushChat,

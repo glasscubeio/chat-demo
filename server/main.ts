@@ -2,8 +2,8 @@ import { createServer, type ServerResponse } from "node:http";
 import type { webcrypto } from "node:crypto";
 import { Server } from "socket.io";
 
-const MAX_FILE = 50 * 1024 ** 2 + 28;
-const MAX_TOTAL = 500 * 1024 ** 2;
+const MAX_FILE = 100 * 1024 ** 2;
+const MAX_TOTAL = 1024 ** 3;
 const FILE_TTL = 15 * 60_000;
 const MESSAGE_TTL = 24 * 60 * 60_000;
 
@@ -42,8 +42,9 @@ const httpServer = createServer((req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   const fileId = url.pathname.match(/^\/files\/([\w-]+)$/)?.[1];
 
+  const file = fileId ? files.get(fileId) : undefined;
+
   if (req.method === "GET" && fileId) {
-    const file = files.get(fileId);
     if (!file) return json(res, 410);
     res.writeHead(200, { "Content-Type": "application/octet-stream" }).end(file.data);
     return;
@@ -52,19 +53,28 @@ const httpServer = createServer((req, res) => {
   if (req.method === "POST" && url.pathname === "/files") {
     const sender = url.searchParams.get("sender");
     const receiver = url.searchParams.get("receiver");
-    const size = Number(req.headers["content-length"]);
-    if (!sender || !receiver) return json(res, 400);
-    if (!size || size > MAX_FILE) return json(res, 413);
+    const size = Number(url.searchParams.get("size"));
+    if (!sender || !receiver || !Number.isInteger(size) || size < 0) return json(res, 400);
+    if (size > MAX_FILE) return json(res, 413);
     const used = [...files.values()].reduce((n, f) => n + f.data.length, 0);
     if (used + size > MAX_TOTAL) return json(res, 507);
 
+    const id = crypto.randomUUID();
+    files.set(id, { data: Buffer.alloc(size), conv: convKey(sender, receiver), expiresAt: Date.now() + FILE_TTL });
+    return json(res, 200, { id });
+  }
+
+  // chunks stay under the proxy's 1MB body limit and are written straight into the preallocated buffer
+  if (req.method === "POST" && fileId) {
+    if (!file) return json(res, 410);
+    const offset = Number(url.searchParams.get("offset"));
     const chunks: Buffer[] = [];
     req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => {
-      const id = crypto.randomUUID();
-      const expiresAt = Date.now() + FILE_TTL;
-      files.set(id, { data: Buffer.concat(chunks), conv: convKey(sender, receiver), expiresAt });
-      json(res, 200, { id, expiresAt });
+      const chunk = Buffer.concat(chunks);
+      if (!Number.isInteger(offset) || offset < 0 || offset + chunk.length > file.data.length) return json(res, 400);
+      file.data.set(chunk, offset);
+      json(res, 200);
     });
     return;
   }
